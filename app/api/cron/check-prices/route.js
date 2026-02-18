@@ -49,14 +49,22 @@ export async function POST(request) {
 
     for (const product of products) {
       try {
+        console.log(`\nChecking product: ${product.name} (${product.url})`);
         const productData = await scrapeProduct(product.url);
+        console.log("Scraped data:", productData);
 
         if (!productData.currentPrice) {
+          console.log("No price found for product:", product.id);
           result.failed++;
           continue;
         }
 
-        const newPrice = parseFloat(productData.currentPrice);
+        // Clean and parse price - remove currency symbols, commas, spaces
+        const priceString = productData.currentPrice.toString()
+            .replace(/[₹$€£,\s]/g, '') // Remove common currency symbols and commas
+            .replace(/[^\d.]/g, '');    // Keep only digits and decimal point
+        
+        const newPrice = parseFloat(priceString);
         const oldPrice = parseFloat(product.current_price);
 
         await supabase
@@ -64,7 +72,7 @@ export async function POST(request) {
           .update({
             current_price: newPrice,
             currency: productData.currencyCode || product.currency,
-            name: productData.productImageUrl || product.image_url,
+            image_url: productData.productImageUrl || product.image_url,
             updated_at: new Date().toISOString(),
           })
           .eq("id", product.id);
@@ -99,8 +107,11 @@ export async function POST(request) {
             }
           }
         }
+
+        result.updated++;
+        console.log(`✓ Successfully updated product ${product.id}`);
       } catch (error) {
-        console.log(`Error processing product ${product.id}:`, error);
+        console.error(`✗ Error processing product ${product.id}:`, error.message);
         result.failed++;
       }
     }
@@ -123,5 +134,4 @@ export async function POST(request) {
   }
 }
 
-// curl -X POST https://priceping.vercel.app/api/cron/check-prices  \
-//  -H "Authorization: Bearer your_cron_secret"
+// curl.exe -X POST https://getprice-ping.vercel.app/api/cron/check-prices -H "Authorization: Bearer aca94871ed480912225f41293fb24c6540716d646b6d8e21d040738027fbb13e"
